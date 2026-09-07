@@ -92,7 +92,7 @@ def categories():
             conn.commit()
             category = conn.execute(
                 "SELECT id, name FROM categories WHERE id = ?",
-                (cursor.lastrow,)
+                (cursor.lastrowid,)
             ).fetchone()
             result = dict(category)
             conn.close()
@@ -156,7 +156,7 @@ def expenses():
             JOIN categories c ON c.id = e.category_id
             WHERE e.id = ?
             """,
-            (cursor.lastrow,)
+            (cursor.lastrowid,)
         ).fetchone()
         conn.close()
         return jsonify(dict(row)), 201
@@ -240,7 +240,7 @@ def income():
                 FROM income
                 WHERE id = ?
                 """,
-                (cursor.lastrow,)
+                (cursor.lastrowid,)
             ).fetchone()
 
             result = dict(row)
