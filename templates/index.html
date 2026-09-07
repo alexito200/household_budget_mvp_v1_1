@@ -83,6 +83,7 @@
 
           <input type="text" id="incomeNotes" placeholder="Notes (optional)" aria-label="Income notes">
           <button class="button button-primary" id="addIncomeButton" type="submit">Add Income</button>
+          <button class="button button-secondary hidden" id="cancelIncomeEditButton" type="button">Cancel Edit</button>
         </form>
         <p id="incomeFormMessage" class="form-message" role="status" aria-live="polite"></p>
 
@@ -118,13 +119,18 @@
     <form method="dialog" class="dialog-card" id="expenseForm">
       <div class="dialog-heading">
         <div>
-          <p class="eyebrow">New expense</p>
+          <p class="eyebrow" id="expenseDialogEyebrow">New expense</p>
           <h2 id="expenseDialogTitle">Add Expense</h2>
         </div>
         <button type="button" class="icon-button" id="closeExpenseDialog">×</button>
       </div>
 
-      <input type="hidden" id="expenseCategoryId">
+      <input type="hidden" id="expenseEditId">
+
+      <label>
+        Category
+        <select id="expenseCategorySelect" required></select>
+      </label>
 
       <label>
         Date
@@ -164,7 +170,8 @@
         <input type="text" id="expenseNotes" placeholder="Optional">
       </label>
 
-      <button class="button button-primary button-full" type="submit">Save Expense</button>
+      <p id="expenseFormMessage" class="form-message" role="status" aria-live="polite"></p>
+      <button class="button button-primary button-full" id="expenseSubmitButton" type="submit">Save Expense</button>
     </form>
   </dialog>
 

@@ -1,8 +1,12 @@
+const MONTH_STORAGE_KEY = "householdBudgetSelectedMonth";
+
 const state = {
   categories: [],
   expenses: [],
   income: [],
   month: "",
+  editingIncomeId: null,
+  expandedCategories: new Set(),
 };
 
 const money = new Intl.NumberFormat("en-US", {
@@ -22,6 +26,23 @@ function currentMonth() {
   return localToday().slice(0, 7);
 }
 
+function validMonth(value) {
+  if (!/^\d{4}-\d{2}$/.test(value || "")) return false;
+  const monthNumber = Number(value.slice(5, 7));
+  return monthNumber >= 1 && monthNumber <= 12;
+}
+
+function savedMonthOrCurrent() {
+  const saved = localStorage.getItem(MONTH_STORAGE_KEY);
+  return validMonth(saved) ? saved : currentMonth();
+}
+
+function setSelectedMonth(month) {
+  state.month = validMonth(month) ? month : currentMonth();
+  localStorage.setItem(MONTH_STORAGE_KEY, state.month);
+  document.querySelector("#monthPicker").value = state.month;
+}
+
 function defaultDateForSelectedMonth() {
   if (!state.month || state.month === currentMonth()) {
     return localToday();
@@ -31,6 +52,12 @@ function defaultDateForSelectedMonth() {
 
 function setIncomeMessage(message = "", type = "") {
   const element = document.querySelector("#incomeFormMessage");
+  element.textContent = message;
+  element.className = `form-message ${type ? `form-message-${type}` : ""}`;
+}
+
+function setExpenseMessage(message = "", type = "") {
+  const element = document.querySelector("#expenseFormMessage");
   element.textContent = message;
   element.className = `form-message ${type ? `form-message-${type}` : ""}`;
 }
@@ -118,17 +145,66 @@ function renderIncome() {
       <td>${escapeHtml(item.source)}</td>
       <td><span class="owner-badge owner-${ownerClass(item.owner)}">${escapeHtml(item.owner)}</span></td>
       <td>${money.format(item.amount)}</td>
-      <td><button class="delete-button" data-income-id="${item.id}">Delete</button></td>
+      <td>
+        <div class="row-actions">
+          <button class="edit-button" data-edit-income-id="${item.id}">Edit</button>
+          <button class="delete-button" data-income-id="${item.id}">Delete</button>
+        </div>
+      </td>
     `;
     tbody.appendChild(row);
   }
 
+  tbody.querySelectorAll("[data-edit-income-id]").forEach((button) => {
+    button.addEventListener("click", () => beginIncomeEdit(Number(button.dataset.editIncomeId)));
+  });
+
   tbody.querySelectorAll("[data-income-id]").forEach((button) => {
     button.addEventListener("click", async () => {
-      await api(`/api/income/${button.dataset.incomeId}`, { method: "DELETE" });
-      await loadAll();
+      if (!confirm("Delete this income entry?")) return;
+
+      try {
+        await api(`/api/income/${button.dataset.incomeId}`, { method: "DELETE" });
+        if (state.editingIncomeId === Number(button.dataset.incomeId)) {
+          cancelIncomeEdit();
+        }
+        await loadAll();
+      } catch (error) {
+        setIncomeMessage(error.message, "error");
+      }
     });
   });
+}
+
+function beginIncomeEdit(incomeId) {
+  const item = state.income.find((entry) => Number(entry.id) === Number(incomeId));
+  if (!item) return;
+
+  state.editingIncomeId = Number(incomeId);
+
+  document.querySelector("#incomeDate").value = item.date;
+  document.querySelector("#incomeSource").value = item.source;
+  document.querySelector("#incomeAmount").value = Number(item.amount).toFixed(2);
+  document.querySelector("#incomeOwner").value = item.owner;
+  document.querySelector("#incomeNotes").value = item.notes || "";
+
+  document.querySelector("#addIncomeButton").textContent = "Save Changes";
+  document.querySelector("#cancelIncomeEditButton").classList.remove("hidden");
+  setIncomeMessage("Editing income entry.", "editing");
+
+  document.querySelector("#incomeSource").focus();
+}
+
+function cancelIncomeEdit() {
+  state.editingIncomeId = null;
+  const form = document.querySelector("#incomeForm");
+  form.reset();
+
+  document.querySelector("#incomeDate").value = defaultDateForSelectedMonth();
+  document.querySelector("#incomeOwner").value = "Me";
+  document.querySelector("#addIncomeButton").textContent = "Add Income";
+  document.querySelector("#cancelIncomeEditButton").classList.add("hidden");
+  setIncomeMessage();
 }
 
 function renderCategories() {
@@ -145,11 +221,13 @@ function renderCategories() {
       0
     );
 
+    const isExpanded = state.expandedCategories.has(Number(category.id));
+
     const card = document.createElement("section");
     card.className = "category-card";
 
     card.innerHTML = `
-      <button class="category-toggle collapsed" data-category-toggle="${category.id}">
+      <button class="category-toggle ${isExpanded ? "" : "collapsed"}" data-category-toggle="${category.id}">
         <div>
           <span class="chevron">▾</span>
           <strong>${escapeHtml(category.name)}</strong>
@@ -157,7 +235,7 @@ function renderCategories() {
         <span>${money.format(categoryTotal)}</span>
       </button>
 
-      <div class="category-content hidden" id="category-${category.id}">
+      <div class="category-content ${isExpanded ? "" : "hidden"}" id="category-${category.id}">
         <div class="category-toolbar">
           <button class="button button-primary button-small" data-add-expense="${category.id}">
             + Add Expense
@@ -192,20 +270,39 @@ function renderCategories() {
 
   container.querySelectorAll("[data-category-toggle]").forEach((button) => {
     button.addEventListener("click", () => {
-      const target = document.querySelector(`#category-${button.dataset.categoryToggle}`);
-      button.classList.toggle("collapsed");
-      target.classList.toggle("hidden");
+      const categoryId = Number(button.dataset.categoryToggle);
+      const target = document.querySelector(`#category-${categoryId}`);
+      const opening = target.classList.contains("hidden");
+
+      button.classList.toggle("collapsed", !opening);
+      target.classList.toggle("hidden", !opening);
+
+      if (opening) {
+        state.expandedCategories.add(categoryId);
+      } else {
+        state.expandedCategories.delete(categoryId);
+      }
     });
   });
 
   container.querySelectorAll("[data-add-expense]").forEach((button) => {
-    button.addEventListener("click", () => openExpenseDialog(button.dataset.addExpense));
+    button.addEventListener("click", () => openExpenseDialogForAdd(Number(button.dataset.addExpense)));
+  });
+
+  container.querySelectorAll("[data-edit-expense-id]").forEach((button) => {
+    button.addEventListener("click", () => openExpenseDialogForEdit(Number(button.dataset.editExpenseId)));
   });
 
   container.querySelectorAll("[data-expense-id]").forEach((button) => {
     button.addEventListener("click", async () => {
-      await api(`/api/expenses/${button.dataset.expenseId}`, { method: "DELETE" });
-      await loadAll();
+      if (!confirm("Delete this expense entry?")) return;
+
+      try {
+        await api(`/api/expenses/${button.dataset.expenseId}`, { method: "DELETE" });
+        await loadAll();
+      } catch (error) {
+        alert(error.message);
+      }
     });
   });
 }
@@ -217,21 +314,68 @@ function expenseRowHtml(expense) {
       <td>${escapeHtml(expense.description)}</td>
       <td><span class="owner-badge owner-${ownerClass(expense.owner)}">${escapeHtml(expense.owner)}</span></td>
       <td>${money.format(expense.amount)}</td>
-      <td><button class="delete-button" data-expense-id="${expense.id}">Delete</button></td>
+      <td>
+        <div class="row-actions">
+          <button class="edit-button" data-edit-expense-id="${expense.id}">Edit</button>
+          <button class="delete-button" data-expense-id="${expense.id}">Delete</button>
+        </div>
+      </td>
     </tr>
   `;
 }
 
-function openExpenseDialog(categoryId) {
-  const category = state.categories.find((item) => Number(item.id) === Number(categoryId));
+function populateExpenseCategoryOptions(selectedCategoryId) {
+  const select = document.querySelector("#expenseCategorySelect");
 
-  document.querySelector("#expenseCategoryId").value = categoryId;
-  document.querySelector("#expenseDate").value = localToday();
+  select.innerHTML = state.categories
+    .map((category) => `
+      <option value="${category.id}" ${Number(category.id) === Number(selectedCategoryId) ? "selected" : ""}>
+        ${escapeHtml(category.name)}
+      </option>
+    `)
+    .join("");
+}
+
+function openExpenseDialogForAdd(categoryId) {
+  const category = state.categories.find((item) => Number(item.id) === Number(categoryId));
+  if (!category) return;
+
+  document.querySelector("#expenseEditId").value = "";
+  populateExpenseCategoryOptions(categoryId);
+
+  document.querySelector("#expenseDate").value = defaultDateForSelectedMonth();
   document.querySelector("#expenseDescription").value = "";
   document.querySelector("#expenseAmount").value = "";
   document.querySelector("#expenseNotes").value = "";
   document.querySelector('input[name="expenseOwner"][value="Me"]').checked = true;
+
+  document.querySelector("#expenseDialogEyebrow").textContent = "New expense";
   document.querySelector("#expenseDialogTitle").textContent = `Add Expense — ${category.name}`;
+  document.querySelector("#expenseSubmitButton").textContent = "Save Expense";
+  setExpenseMessage();
+
+  document.querySelector("#expenseDialog").showModal();
+}
+
+function openExpenseDialogForEdit(expenseId) {
+  const expense = state.expenses.find((item) => Number(item.id) === Number(expenseId));
+  if (!expense) return;
+
+  document.querySelector("#expenseEditId").value = expense.id;
+  populateExpenseCategoryOptions(expense.category_id);
+
+  document.querySelector("#expenseDate").value = expense.date;
+  document.querySelector("#expenseDescription").value = expense.description;
+  document.querySelector("#expenseAmount").value = Number(expense.amount).toFixed(2);
+  document.querySelector("#expenseNotes").value = expense.notes || "";
+
+  const ownerRadio = document.querySelector(`input[name="expenseOwner"][value="${expense.owner}"]`);
+  if (ownerRadio) ownerRadio.checked = true;
+
+  document.querySelector("#expenseDialogEyebrow").textContent = "Edit expense";
+  document.querySelector("#expenseDialogTitle").textContent = "Edit Expense";
+  document.querySelector("#expenseSubmitButton").textContent = "Save Changes";
+  setExpenseMessage();
 
   document.querySelector("#expenseDialog").showModal();
 }
@@ -293,6 +437,7 @@ document.querySelector("#incomeForm").addEventListener("submit", async (event) =
 
   const form = event.currentTarget;
   const button = document.querySelector("#addIncomeButton");
+  const editingIncomeId = state.editingIncomeId;
 
   const payload = {
     date: document.querySelector("#incomeDate").value.trim(),
@@ -324,76 +469,119 @@ document.querySelector("#incomeForm").addEventListener("submit", async (event) =
   }
 
   button.disabled = true;
-  button.textContent = "Saving...";
+  button.textContent = editingIncomeId ? "Saving..." : "Adding...";
 
   try {
-    const savedIncome = await api("/api/income", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-
-    // If the saved entry belongs to the month currently being viewed,
-    // update the screen immediately before refreshing from SQLite.
-    if (savedIncome.date.slice(0, 7) === state.month) {
-      state.income.unshift(savedIncome);
-      renderSummary();
-      renderIncome();
+    if (editingIncomeId) {
+      await api(`/api/income/${editingIncomeId}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+    } else {
+      await api("/api/income", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
     }
 
-    form.reset();
-    document.querySelector("#incomeDate").value = defaultDateForSelectedMonth();
-    document.querySelector("#incomeOwner").value = "Me";
-    setIncomeMessage("Income added successfully.", "success");
-
+    cancelIncomeEdit();
     await loadAll();
+    setIncomeMessage(editingIncomeId ? "Income updated successfully." : "Income added successfully.", "success");
   } catch (error) {
     console.error("Income save failed:", error);
-    setIncomeMessage(error.message || "Could not add income.", "error");
+    setIncomeMessage(error.message || "Could not save income.", "error");
   } finally {
     button.disabled = false;
-    button.textContent = "Add Income";
+    button.textContent = state.editingIncomeId ? "Save Changes" : "Add Income";
   }
 });
+
+document.querySelector("#cancelIncomeEditButton").addEventListener("click", cancelIncomeEdit);
 
 document.querySelector("#expenseForm").addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const owner = document.querySelector('input[name="expenseOwner"]:checked').value;
+  const editId = document.querySelector("#expenseEditId").value;
+  const button = document.querySelector("#expenseSubmitButton");
+  const owner = document.querySelector('input[name="expenseOwner"]:checked')?.value;
 
-  await api("/api/expenses", {
-    method: "POST",
-    body: JSON.stringify({
-      date: document.querySelector("#expenseDate").value,
-      description: document.querySelector("#expenseDescription").value,
-      amount: document.querySelector("#expenseAmount").value,
-      category_id: document.querySelector("#expenseCategoryId").value,
-      owner,
-      notes: document.querySelector("#expenseNotes").value,
-    }),
-  });
+  const payload = {
+    date: document.querySelector("#expenseDate").value.trim(),
+    description: document.querySelector("#expenseDescription").value.trim(),
+    amount: document.querySelector("#expenseAmount").value.trim(),
+    category_id: document.querySelector("#expenseCategorySelect").value,
+    owner,
+    notes: document.querySelector("#expenseNotes").value.trim(),
+  };
 
-  document.querySelector("#expenseDialog").close();
-  await loadAll();
+  setExpenseMessage();
+
+  if (!payload.date) {
+    setExpenseMessage("Choose a date for this expense.", "error");
+    return;
+  }
+
+  if (!payload.description) {
+    setExpenseMessage("Enter an expense description.", "error");
+    return;
+  }
+
+  const numericAmount = Number(payload.amount);
+  if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+    setExpenseMessage("Enter an expense amount greater than $0.00.", "error");
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Saving...";
+
+  try {
+    if (editId) {
+      await api(`/api/expenses/${editId}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+    } else {
+      await api("/api/expenses", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    }
+
+    document.querySelector("#expenseDialog").close();
+    await loadAll();
+  } catch (error) {
+    console.error("Expense save failed:", error);
+    setExpenseMessage(error.message || "Could not save expense.", "error");
+  } finally {
+    button.disabled = false;
+    button.textContent = editId ? "Save Changes" : "Save Expense";
+  }
 });
 
 document.querySelector("#categoryForm").addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  await api("/api/categories", {
-    method: "POST",
-    body: JSON.stringify({
-      name: document.querySelector("#categoryName").value,
-    }),
-  });
+  try {
+    await api("/api/categories", {
+      method: "POST",
+      body: JSON.stringify({
+        name: document.querySelector("#categoryName").value,
+      }),
+    });
 
-  document.querySelector("#categoryDialog").close();
-  document.querySelector("#categoryName").value = "";
-  await loadAll();
+    document.querySelector("#categoryDialog").close();
+    document.querySelector("#categoryName").value = "";
+    await loadAll();
+  } catch (error) {
+    alert(error.message);
+  }
 });
 
 document.querySelector("#monthPicker").addEventListener("change", async (event) => {
-  state.month = event.target.value || currentMonth();
-  document.querySelector("#incomeDate").value = defaultDateForSelectedMonth();
+  setSelectedMonth(event.target.value || currentMonth());
+  cancelIncomeEdit();
+  document.querySelector("#expenseDialog").close();
   setIncomeMessage();
   await loadAll();
 });
@@ -425,8 +613,7 @@ document.querySelector("#closeReportDialog").addEventListener("click", () => {
 });
 
 async function start() {
-  state.month = currentMonth();
-  document.querySelector("#monthPicker").value = state.month;
+  setSelectedMonth(savedMonthOrCurrent());
   document.querySelector("#incomeDate").value = defaultDateForSelectedMonth();
   document.querySelector("#incomeOwner").value = "Me";
   await loadAll();

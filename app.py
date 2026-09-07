@@ -183,13 +183,100 @@ def expenses():
     conn.close()
     return jsonify([dict(row) for row in rows])
 
-@app.route("/api/expenses/<int:expense_id>", methods=["DELETE"])
-def delete_expense(expense_id):
+@app.route("/api/expenses/<int:expense_id>", methods=["PUT", "DELETE"])
+def expense_detail(expense_id):
     conn = get_db()
-    conn.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
-    conn.commit()
-    conn.close()
-    return jsonify({"ok": True})
+
+    if request.method == "DELETE":
+        conn.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
+
+    data = request.get_json(silent=True) or {}
+
+    date = str(data.get("date") or "").strip()
+    description = str(data.get("description") or "").strip()
+    owner = str(data.get("owner") or "").strip()
+    notes = str(data.get("notes") or "").strip()
+    raw_amount = data.get("amount")
+    raw_category_id = data.get("category_id")
+
+    if not date:
+        conn.close()
+        return jsonify({"error": "Expense date is required."}), 400
+
+    if not description:
+        conn.close()
+        return jsonify({"error": "Expense description is required."}), 400
+
+    try:
+        amount = round(float(raw_amount), 2)
+        if amount <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        conn.close()
+        return jsonify({"error": "Expense amount must be greater than $0.00."}), 400
+
+    try:
+        category_id = int(raw_category_id)
+    except (TypeError, ValueError):
+        conn.close()
+        return jsonify({"error": "Choose a valid expense category."}), 400
+
+    if owner not in {"Me", "Wife", "Shared"}:
+        conn.close()
+        return jsonify({"error": "Choose Me, Wife, or Shared for the expense owner."}), 400
+
+    category = conn.execute(
+        "SELECT id FROM categories WHERE id = ?",
+        (category_id,)
+    ).fetchone()
+
+    if not category:
+        conn.close()
+        return jsonify({"error": "The selected expense category does not exist."}), 400
+
+    existing = conn.execute(
+        "SELECT id FROM expenses WHERE id = ?",
+        (expense_id,)
+    ).fetchone()
+
+    if not existing:
+        conn.close()
+        return jsonify({"error": "Expense entry not found."}), 404
+
+    try:
+        conn.execute(
+            """
+            UPDATE expenses
+            SET date = ?, description = ?, amount = ?, category_id = ?, owner = ?, notes = ?
+            WHERE id = ?
+            """,
+            (date, description, amount, category_id, owner, notes, expense_id)
+        )
+        conn.commit()
+
+        row = conn.execute(
+            """
+            SELECT e.id, e.date, e.description, e.amount, e.owner, e.notes,
+                   c.id AS category_id, c.name AS category_name
+            FROM expenses e
+            JOIN categories c ON c.id = e.category_id
+            WHERE e.id = ?
+            """,
+            (expense_id,)
+        ).fetchone()
+
+        result = dict(row)
+        conn.close()
+        return jsonify(result)
+
+    except sqlite3.Error as exc:
+        conn.rollback()
+        conn.close()
+        app.logger.exception("Failed to update expense")
+        return jsonify({"error": f"Could not update expense: {exc}"}), 500
 
 @app.route("/api/income", methods=["GET", "POST"])
 def income():
@@ -274,13 +361,82 @@ def income():
     conn.close()
     return jsonify([dict(row) for row in rows])
 
-@app.route("/api/income/<int:income_id>", methods=["DELETE"])
-def delete_income(income_id):
+@app.route("/api/income/<int:income_id>", methods=["PUT", "DELETE"])
+def income_detail(income_id):
     conn = get_db()
-    conn.execute("DELETE FROM income WHERE id = ?", (income_id,))
-    conn.commit()
-    conn.close()
-    return jsonify({"ok": True})
+
+    if request.method == "DELETE":
+        conn.execute("DELETE FROM income WHERE id = ?", (income_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
+
+    data = request.get_json(silent=True) or {}
+
+    date = str(data.get("date") or "").strip()
+    source = str(data.get("source") or "").strip()
+    owner = str(data.get("owner") or "").strip()
+    notes = str(data.get("notes") or "").strip()
+    raw_amount = data.get("amount")
+
+    if not date:
+        conn.close()
+        return jsonify({"error": "Income date is required."}), 400
+
+    if not source:
+        conn.close()
+        return jsonify({"error": "Income source is required."}), 400
+
+    try:
+        amount = round(float(raw_amount), 2)
+        if amount <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        conn.close()
+        return jsonify({"error": "Income amount must be greater than $0.00."}), 400
+
+    if owner not in {"Me", "Wife", "Shared"}:
+        conn.close()
+        return jsonify({"error": "Choose Me, Wife, or Shared for the income owner."}), 400
+
+    existing = conn.execute(
+        "SELECT id FROM income WHERE id = ?",
+        (income_id,)
+    ).fetchone()
+
+    if not existing:
+        conn.close()
+        return jsonify({"error": "Income entry not found."}), 404
+
+    try:
+        conn.execute(
+            """
+            UPDATE income
+            SET date = ?, source = ?, amount = ?, owner = ?, notes = ?
+            WHERE id = ?
+            """,
+            (date, source, amount, owner, notes, income_id)
+        )
+        conn.commit()
+
+        row = conn.execute(
+            """
+            SELECT id, date, source, amount, owner, notes
+            FROM income
+            WHERE id = ?
+            """,
+            (income_id,)
+        ).fetchone()
+
+        result = dict(row)
+        conn.close()
+        return jsonify(result)
+
+    except sqlite3.Error as exc:
+        conn.rollback()
+        conn.close()
+        app.logger.exception("Failed to update income")
+        return jsonify({"error": f"Could not update income: {exc}"}), 500
 
 @app.route("/api/report")
 def report():
