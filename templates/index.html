@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Household Budget</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Household Budget</h1>
+      <p>Track income, expenses, categories, and monthly totals.</p>
+    </div>
+
+    <div class="topbar-actions">
+      <label class="month-picker">
+        <span>Month</span>
+        <input type="month" id="monthPicker">
+      </label>
+      <button class="button button-primary" id="reportButton">Generate Monthly Report</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="summary-grid">
+      <article class="summary-card">
+        <span>Income</span>
+        <strong id="incomeTotal">$0.00</strong>
+      </article>
+
+      <article class="summary-card">
+        <span>Expenses</span>
+        <strong id="expenseTotal">$0.00</strong>
+      </article>
+
+      <article class="summary-card">
+        <span>Remaining</span>
+        <strong id="remainingTotal">$0.00</strong>
+      </article>
+    </section>
+
+    <section class="owner-summary">
+      <div class="owner-pill owner-me">
+        <span class="owner-dot"></span>
+        <span>Me</span>
+        <strong id="meExpenseTotal">$0.00</strong>
+      </div>
+
+      <div class="owner-pill owner-wife">
+        <span class="owner-dot"></span>
+        <span>Wife</span>
+        <strong id="wifeExpenseTotal">$0.00</strong>
+      </div>
+
+      <div class="owner-pill owner-shared">
+        <span class="owner-dot"></span>
+        <span>Shared</span>
+        <strong id="sharedExpenseTotal">$0.00</strong>
+      </div>
+    </section>
+
+    <section class="panel">
+      <button class="section-toggle" data-target="incomePanel">
+        <div>
+          <span class="chevron">▾</span>
+          <strong>Income</strong>
+        </div>
+        <span id="incomeSectionTotal">$0.00</span>
+      </button>
+
+      <div class="section-content" id="incomePanel">
+        <form id="incomeForm" class="entry-form" novalidate>
+          <input type="date" id="incomeDate" aria-label="Income date" required>
+          <input type="text" id="incomeSource" placeholder="Income source" aria-label="Income source" required>
+          <input type="number" id="incomeAmount" min="0.01" step="0.01" placeholder="Amount" aria-label="Income amount" required>
+
+          <select id="incomeOwner" aria-label="Income owner" required>
+            <option value="Me">Me</option>
+            <option value="Wife">Wife</option>
+            <option value="Shared">Shared</option>
+          </select>
+
+          <input type="text" id="incomeNotes" placeholder="Notes (optional)" aria-label="Income notes">
+          <button class="button button-primary" id="addIncomeButton" type="submit">Add Income</button>
+        </form>
+        <p id="incomeFormMessage" class="form-message" role="status" aria-live="polite"></p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Source</th>
+                <th>Owner</th>
+                <th>Amount</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="incomeRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-heading">
+      <div>
+        <h2>Expense Categories</h2>
+        <p>Each category expands independently.</p>
+      </div>
+      <button class="button button-secondary" id="addCategoryButton">+ Add Category</button>
+    </section>
+
+    <div id="categoriesContainer"></div>
+  </main>
+
+  <dialog id="expenseDialog">
+    <form method="dialog" class="dialog-card" id="expenseForm">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">New expense</p>
+          <h2 id="expenseDialogTitle">Add Expense</h2>
+        </div>
+        <button type="button" class="icon-button" id="closeExpenseDialog">×</button>
+      </div>
+
+      <input type="hidden" id="expenseCategoryId">
+
+      <label>
+        Date
+        <input type="date" id="expenseDate" required>
+      </label>
+
+      <label>
+        Description
+        <input type="text" id="expenseDescription" placeholder="Example: ShopRite" required>
+      </label>
+
+      <label>
+        Amount
+        <input type="number" id="expenseAmount" min="0" step="0.01" placeholder="0.00" required>
+      </label>
+
+      <fieldset>
+        <legend>Whose expense?</legend>
+        <div class="owner-choice-grid">
+          <label class="owner-choice owner-me">
+            <input type="radio" name="expenseOwner" value="Me" checked>
+            <span>Me</span>
+          </label>
+          <label class="owner-choice owner-wife">
+            <input type="radio" name="expenseOwner" value="Wife">
+            <span>Wife</span>
+          </label>
+          <label class="owner-choice owner-shared">
+            <input type="radio" name="expenseOwner" value="Shared">
+            <span>Shared</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <label>
+        Notes
+        <input type="text" id="expenseNotes" placeholder="Optional">
+      </label>
+
+      <button class="button button-primary button-full" type="submit">Save Expense</button>
+    </form>
+  </dialog>
+
+  <dialog id="categoryDialog">
+    <form method="dialog" class="dialog-card" id="categoryForm">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">New category</p>
+          <h2>Add Category</h2>
+        </div>
+        <button type="button" class="icon-button" id="closeCategoryDialog">×</button>
+      </div>
+
+      <label>
+        Category name
+        <input type="text" id="categoryName" placeholder="Example: Childcare" required>
+      </label>
+
+      <button class="button button-primary button-full" type="submit">Create Category</button>
+    </form>
+  </dialog>
+
+  <dialog id="reportDialog">
+    <div class="report-card">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">Monthly report</p>
+          <h2 id="reportTitle">Monthly Report</h2>
+        </div>
+        <button type="button" class="icon-button" id="closeReportDialog">×</button>
+      </div>
+
+      <div class="report-summary" id="reportSummary"></div>
+
+      <div class="table-wrap">
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Me</th>
+              <th>Wife</th>
+              <th>Shared</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody id="reportRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
