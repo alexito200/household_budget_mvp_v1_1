@@ -60,6 +60,57 @@
       </div>
     </section>
 
+    <section class="allocation-panel">
+      <div class="allocation-heading">
+        <div>
+          <p class="eyebrow">50 / 30 / 20 plan</p>
+          <h2>Remaining Income Allocation</h2>
+          <p>Recommended allocation of the money remaining after this month's expenses.</p>
+        </div>
+        <div class="allocation-base">
+          <span>Amount to allocate</span>
+          <strong id="allocationBase">$0.00</strong>
+        </div>
+      </div>
+
+      <div class="allocation-grid">
+        <article class="allocation-card allocation-bills">
+          <div class="allocation-card-top">
+            <div>
+              <span class="allocation-label">Bills</span>
+              <strong>50%</strong>
+            </div>
+            <span class="allocation-amount" id="billsAllocation">$0.00</span>
+          </div>
+          <div class="allocation-track"><span style="width: 50%"></span></div>
+        </article>
+
+        <article class="allocation-card allocation-wants">
+          <div class="allocation-card-top">
+            <div>
+              <span class="allocation-label">Wants</span>
+              <strong>30%</strong>
+            </div>
+            <span class="allocation-amount" id="wantsAllocation">$0.00</span>
+          </div>
+          <div class="allocation-track"><span style="width: 30%"></span></div>
+        </article>
+
+        <article class="allocation-card allocation-savings">
+          <div class="allocation-card-top">
+            <div>
+              <span class="allocation-label">Savings</span>
+              <strong>20%</strong>
+            </div>
+            <span class="allocation-amount" id="savingsAllocation">$0.00</span>
+          </div>
+          <div class="allocation-track"><span style="width: 20%"></span></div>
+        </article>
+      </div>
+
+      <p class="allocation-status" id="allocationStatus"></p>
+    </section>
+
     <section class="panel">
       <button class="section-toggle" data-target="incomePanel">
         <div>

@@ -555,3 +555,122 @@ dialog::backdrop {
 #cancelIncomeEditButton {
   white-space: nowrap;
 }
+
+.allocation-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 20px;
+  margin: 0 0 24px;
+  box-shadow: var(--shadow);
+}
+
+.allocation-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+
+.allocation-heading h2 {
+  margin: 3px 0 5px;
+}
+
+.allocation-heading > div:first-child > p:last-child {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.allocation-base {
+  min-width: 170px;
+  text-align: right;
+}
+
+.allocation-base span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.allocation-base strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 22px;
+}
+
+.allocation-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.allocation-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 15px;
+  background: var(--surface-soft);
+}
+
+.allocation-card-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.allocation-card-top > div {
+  display: grid;
+  gap: 3px;
+}
+
+.allocation-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.allocation-card-top strong,
+.allocation-amount {
+  font-size: 18px;
+}
+
+.allocation-amount {
+  font-weight: 800;
+}
+
+.allocation-track {
+  height: 7px;
+  margin-top: 13px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e8ecf2;
+}
+
+.allocation-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.allocation-bills .allocation-track span { background: #ef4444; }
+.allocation-wants .allocation-track span { background: #3b82f6; }
+.allocation-savings .allocation-track span { background: #22c55e; }
+
+.allocation-status {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.allocation-status-positive { color: #137333; }
+.allocation-status-deficit {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .allocation-grid { grid-template-columns: 1fr; }
+  .allocation-heading { flex-direction: column; }
+  .allocation-base { text-align: left; }
+}

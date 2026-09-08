@@ -118,6 +118,8 @@ function renderSummary() {
   document.querySelector("#remainingTotal").textContent = money.format(remaining);
   document.querySelector("#incomeSectionTotal").textContent = money.format(incomeTotal);
 
+  renderAllocation(remaining);
+
   const ownerTotals = { Me: 0, Wife: 0, Shared: 0 };
   for (const expense of state.expenses) {
     ownerTotals[expense.owner] += Number(expense.amount);
@@ -126,6 +128,31 @@ function renderSummary() {
   document.querySelector("#meExpenseTotal").textContent = money.format(ownerTotals.Me);
   document.querySelector("#wifeExpenseTotal").textContent = money.format(ownerTotals.Wife);
   document.querySelector("#sharedExpenseTotal").textContent = money.format(ownerTotals.Shared);
+}
+
+function renderAllocation(remaining) {
+  const allocationBase = Math.max(remaining, 0);
+  const bills = allocationBase * 0.50;
+  const wants = allocationBase * 0.30;
+  const savings = allocationBase * 0.20;
+
+  document.querySelector("#allocationBase").textContent = money.format(allocationBase);
+  document.querySelector("#billsAllocation").textContent = money.format(bills);
+  document.querySelector("#wantsAllocation").textContent = money.format(wants);
+  document.querySelector("#savingsAllocation").textContent = money.format(savings);
+
+  const status = document.querySelector("#allocationStatus");
+
+  if (remaining < 0) {
+    status.textContent = `This month is currently ${money.format(Math.abs(remaining))} over income, so there is no remaining income to allocate yet.`;
+    status.className = "allocation-status allocation-status-deficit";
+  } else if (remaining === 0) {
+    status.textContent = "There is currently no remaining income to allocate for this month.";
+    status.className = "allocation-status";
+  } else {
+    status.textContent = `${money.format(allocationBase)} remaining is allocated as ${money.format(bills)} for bills, ${money.format(wants)} for wants, and ${money.format(savings)} for savings.`;
+    status.className = "allocation-status allocation-status-positive";
+  }
 }
 
 function renderIncome() {
